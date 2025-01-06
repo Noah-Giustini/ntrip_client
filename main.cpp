@@ -30,19 +30,36 @@ SOFTWARE.
 
 bool run = true;
 
+/**
+ * @brief Signal handler for SIGINT.
+ * 
+ * @param signal The signal number.
+ */
 void signal_handler(int signal) {
     std::cout << "SIGINT received, shutting down..." << std::endl;
     run = false;
 }
 
-//some code to convert degrees to ddmm format
+/**
+ * @brief Converts a decimal degree to a DDMM format.
+ * 
+ * @param degree The decimal degree to convert.
+ * @return The DDMM format of the decimal degree.
+ */
 static double degree_to_ddmm(double const& degree) {
   int deg = static_cast<int>(floor(degree));
   double minute = degree - deg*1.0;
   return (deg*1.0 + minute*60.0/100.0);
 }
 
-//some code to generate a GGA frame
+/**
+ * @brief Generates a GGA message from the provided latitude, longitude, and altitude.
+ * 
+ * @param lat The latitude in decimal degrees.
+ * @param lon The longitude in decimal degrees.
+ * @param alt The altitude in meters.
+ * @return The GGA message.
+ */
 static std::string generage_gga_message (double lat, double lon, double alt){
     char buffer[256];
     time_t now = time(0);
@@ -73,6 +90,11 @@ static std::string generage_gga_message (double lat, double lon, double alt){
     return gga_message;
 }
 
+/**
+ * @brief Main function for the NtripClient.
+ * 
+ * @return 0 if the program exits successfully.
+ */
 int main() {
     std::string gga_message = generage_gga_message(51.05011, -114.08529, 1045);
     NtripClient client;

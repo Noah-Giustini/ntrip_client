@@ -47,6 +47,13 @@ constexpr int socket_timeout = 50;  //100 * ms
 constexpr int reporting_interval_ms = 1000;  //ms
 
 static const std::string b = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";//=
+
+/**
+ * @brief Encodes a string to base64.
+ * 
+ * @param in The input string to encode.
+ * @return The base64 encoded string.
+ */
 static std::string base64_encode(const std::string &in) {
     std::string out;
 
@@ -64,6 +71,15 @@ static std::string base64_encode(const std::string &in) {
     return out;
 }
 
+/**
+ * @brief Creates an NtripClient object with the provided connection details.
+ * 
+ * @param host The NTRIP server host address.
+ * @param port The NTRIP server port.
+ * @param mountpoint The NTRIP server mountpoint.
+ * @param username The NTRIP server username.
+ * @param password The NTRIP server password.
+ */
 NtripClient::NtripClient(const std::string& host, const std::string& port, const std::string& mountpoint, const std::string& username, const std::string& password) :
     host_(host),
     port_(port),
@@ -73,12 +89,25 @@ NtripClient::NtripClient(const std::string& host, const std::string& port, const
     initialized_ = true;
 }
 
+/**
+ * @brief Destroys the NtripClient object, stopping the client if it is still running.
+ */
 NtripClient::~NtripClient() {
     if (IsRunning()) {
         Stop();
     }
 }
 
+/**
+ * @brief Initializes the NtripClient with the provided connection details.
+ * 
+ * @param host The NTRIP server host address.
+ * @param port The NTRIP server port.
+ * @param mountpoint The NTRIP server mountpoint.
+ * @param username The NTRIP server username.
+ * @param password The NTRIP server password.
+ * @return true if the client is successfully initialized, false otherwise.
+ */
 bool NtripClient::Init(const std::string& host, const std::string& port, const std::string& mountpoint, const std::string& username, const std::string& password) {
     host_ = host;
     port_ = port;
@@ -89,6 +118,21 @@ bool NtripClient::Init(const std::string& host, const std::string& port, const s
     return true;
 }
 
+/**
+ * @brief Runs the NtripClient, establishing a connection to the NTRIP server.
+ * 
+ * This function performs the following steps:
+ * - Stops the client if it is already running.
+ * - Sets up the network structure for the socket connection.
+ * - Creates a socket and connects to the server.
+ * - Sets the socket to non-blocking mode.
+ * - Authenticates the NTRIP connection using the provided credentials.
+ * - Sends GGA data if available.
+ * - Configures TCP socket keepalive options if enabled.
+ * - Starts the client thread to handle incoming data.
+ * 
+ * @return true if the client successfully connects and authenticates with the server, false otherwise.
+ */
 bool NtripClient::Run() {
     if (IsRunning()) {
         Stop();
@@ -198,6 +242,9 @@ bool NtripClient::Run() {
   
 }
 
+/**
+ * @brief Stops the NtripClient, closing the socket and joining the thread.
+ */
 void NtripClient::Stop() {
     if (running_) {
         running_ = false;
@@ -206,14 +253,27 @@ void NtripClient::Stop() {
     }
 }
 
+/**
+ * @brief Checks if the NtripClient is currently running.
+ * 
+ * @return true if the client is running, false otherwise.
+ */
 bool NtripClient::IsRunning() {
     return running_;
 }
 
+/**
+ * @brief Updates the GGA data buffer with the provided GGA message.
+ * 
+ * @param gga The GGA message to update the buffer with.
+ */
 void NtripClient::UpdateGGA(std::string gga) {
     gga_buffer_ = gga;
 }
 
+/**
+ * @brief Cleans up the NtripClient, closing the socket if it is still open.
+ */
 void NtripClient::Cleanup() {
     if (sockfd_ > 0) {
         close(sockfd_);
@@ -221,6 +281,14 @@ void NtripClient::Cleanup() {
     }
 }
 
+/**
+ * @brief The main thread handler for the NtripClient.
+ * 
+ * This function is responsible for handling the main body of the NtripClient service.
+ * It receives data from the NTRIP server and sends GGA data at regular intervals.
+ * 
+ * @return true if the thread handler completes successfully, false otherwise.
+ */
 bool NtripClient::ThreadHandler() {
     //confirm the module has been initialized
     if (!initialized_) {
