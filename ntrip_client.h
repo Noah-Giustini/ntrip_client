@@ -34,9 +34,11 @@ public:
     bool Run();
     void Stop();
     bool IsRunning();
+    void UpdateGGA(std::string gga);
 
 private:
-    void ThreadHandler();
+    bool ThreadHandler();
+    void Cleanup();
     std::string host_;
     std::string port_;
     std::string mountpoint_;
@@ -47,8 +49,8 @@ private:
     std::thread thread_;
     int sockfd_ = -1;
 
+    bool initialized_ = false;
     bool connected_ = false;
     bool authenticated_ = false;
-    bool initialized_ = false;
     bool running_ = false;
 };

@@ -44,6 +44,7 @@ SOFTWARE.
 
 constexpr int buffer_size = 4096;
 constexpr int socket_timeout = 50;  //100 * ms
+constexpr int reporting_interval_ms = 1000;  //ms
 
 static const std::string b = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";//=
 static std::string base64_encode(const std::string &in) {
@@ -100,6 +101,8 @@ bool NtripClient::Run() {
     serv_addr.sin_port = htons(std::stoi(port_));
     serv_addr.sin_addr.s_addr = inet_addr(host_.c_str());
 
+    std::cout << inet_addr(host_.c_str()) << std::endl;
+
     //create socket
     sockfd_ = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd_ < 0) {
@@ -113,6 +116,8 @@ bool NtripClient::Run() {
         close(sockfd_);
         return false;
     }
+
+    connected_ = true;
 
     //set socket to non-blocking
     int flags = fcntl(sockfd_, F_GETFL);
@@ -142,6 +147,7 @@ bool NtripClient::Run() {
             std::string result(buffer_.get(), ret);
             if ((result.find("HTTP/1.1 200 OK") != std::string::npos) ||
                 (result.find("ICY 200 OK") != std::string::npos)) {
+                authenticated_ = true;
                 if (!gga_buffer_.empty()) {
                     ret = send(sockfd_, gga_buffer_.c_str(), gga_buffer_.size(), 0);
                     if (ret < 0) {
@@ -153,6 +159,7 @@ bool NtripClient::Run() {
                     break;
                 } else {
                     //nothing in the buffer to send. go next i guess
+                    break;
                 }
             } else {
                 std::cerr << "Error: Request result: " << result << std::endl;
@@ -203,7 +210,90 @@ bool NtripClient::IsRunning() {
     return running_;
 }
 
-void NtripClient::ThreadHandler() {
-    //todo: add main running body here
-    
+void NtripClient::UpdateGGA(std::string gga) {
+    gga_buffer_ = gga;
+}
+
+void NtripClient::Cleanup() {
+    if (sockfd_ > 0) {
+        close(sockfd_);
+        sockfd_ = -1;
+    }
+}
+
+bool NtripClient::ThreadHandler() {
+    //confirm the module has been initialized
+    if (!initialized_) {
+        std::cerr << "Error: NtripClient not initialized" << std::endl;
+        Cleanup();
+        return false;
+    }
+
+    //if initialized, confirm the connection has been made
+    if (!connected_) {
+        std::cerr << "Error: NtripClient not connected" << std::endl;
+        Cleanup();
+        return false;
+    }
+
+    //if connected, confirm the client has been authenticated
+    if (!authenticated_) {
+        std::cerr << "Error: NtripClient not authenticated" << std::endl;
+        Cleanup();
+        return false;
+    }
+
+    //confirm the socket has not been broken or lost since the thread was created
+    if (sockfd_ < 0) {
+        std::cerr << "Error: Socket not created" << std::endl;
+        Cleanup();
+        return false;
+    }
+
+    //if all checks are ok, we can go ahead with the main body
+    std::unique_ptr<char[]> buffer_(new char[buffer_size], std::default_delete<char[]>());
+    int ret = 0;
+    auto start_time = std::chrono::steady_clock::now();
+    auto end_time = start_time;
+    std::cout << "NtripClient service running..." << std::endl;
+    while (running_) {
+        ret = recv(sockfd_, buffer_.get(), buffer_size, 0);
+        if (ret == 0) {
+            std::cerr << "Remote socket closed" << std::endl;
+            Cleanup();
+            return false;
+        } else if (ret < 0) {
+            if ((errno != 0) && (errno != EAGAIN) && (errno != EWOULDBLOCK) && (errno != EINTR)) {
+                std::cerr << "Remote socket error, errno=" << errno << std::endl;
+                Cleanup();
+                return false;
+            }
+        } else {
+            //do something with the data
+            //alternative methods can be created here to move it to a queue or whatever
+            std::cout << "Data received: ";
+            for (int i = 0; i < ret; i++) {
+                std::cout << std::hex << (int)static_cast<uint8_t>(buffer_[i]);
+            }
+            std::cout << std::endl;
+        }
+        end_time = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() >= reporting_interval_ms) {
+            start_time = std::chrono::steady_clock::now();
+            //send some data
+            if (!gga_buffer_.empty()) {
+                ret = send(sockfd_, gga_buffer_.c_str(), gga_buffer_.size(), 0);
+                if (ret < 0) {
+                    std::cerr << "Error: Could not send GGA data to server" << std::endl;
+                    Cleanup();
+                    return false;
+                }
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    Cleanup();
+    std::cout << "NtripClient service done." << std::endl;
+    return true;
 }
