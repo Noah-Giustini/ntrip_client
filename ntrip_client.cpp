@@ -27,6 +27,7 @@ SOFTWARE.
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -143,9 +144,19 @@ bool NtripClient::Run() {
     memset(&serv_addr, '0', sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(std::stoi(port_));
-    serv_addr.sin_addr.s_addr = inet_addr(host_.c_str());
 
-    std::cout << inet_addr(host_.c_str()) << std::endl;
+    //using the host_ variable, resolve the ip address for the server
+    addrinfo hints, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    int status = getaddrinfo(host_.c_str(), port_.c_str(), &hints, &res);
+    if (status != 0) {
+        std::cerr << "Error: Could not resolve host address" << std::endl;
+        return false;
+    }
+
+    serv_addr.sin_addr.s_addr = inet_addr(inet_ntoa(((struct sockaddr_in *)(res->ai_addr))->sin_addr));
 
     //create socket
     sockfd_ = socket(AF_INET, SOCK_STREAM, 0);

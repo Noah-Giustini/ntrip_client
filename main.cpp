@@ -98,8 +98,7 @@ static std::string generage_gga_message (double lat, double lon, double alt){
 int main() {
     std::string gga_message = generage_gga_message(51.05011, -114.08529, 1045);
     NtripClient client;
-    //address resolution does not work right now...
-    client.Init("3.143.243.81", "2101", "axiombase1", "noah.giu1@gmail.com", "none");
+    client.Init("rtk2go.com", "2101", "axiombase1", "", "");
     client.UpdateGGA(gga_message);
     client.Run();
     std::signal(SIGINT, signal_handler);
