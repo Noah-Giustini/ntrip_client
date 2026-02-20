@@ -16,7 +16,7 @@ To build the `ntrip_client`, you can run the following command:
 To run the `ntrip_client`, after building you can run the following command:
 
 ```sh
-./ntrip_client.o
+./ntrip_client /path/to/grm.json
 ```
 
 ## FAQ

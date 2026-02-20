@@ -1,4 +1,6 @@
 /*
+https://github.com/Noah-Giustini/ntrip_client/
+
 MIT License
 
 Copyright (c) 2025 Noah Giustini
@@ -21,9 +23,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
+#ifndef NTRIP_CLIENT_H
+#define NTRIP_CLIENT_H
 
 #include <string>
 #include <thread>
+#include <queue>
+#include <mutex>
+#include <memory>
+#include <functional>
 
 class NtripClient {
 public:
@@ -86,24 +94,73 @@ public:
      */
     bool IsRunning();
 
+
     /**
-     * @brief Updates the GGA data buffer with the provided GGA message.
-     * 
-     * @param gga The GGA message to update the buffer with.
+     * @brief Set a handler to receive RTCM/NTRIP output messages.
+     * @param handler A function to call with each RTCM/NTRIP message.
      */
-    void UpdateGGA(std::string gga);
+    void SetRtcmOutputHandler(const std::function<void(const std::vector<unsigned char>&)>& handler) { rtcm_output_handler_ = handler; }
+
+    /**
+     * @brief Function to allow for putting new GGA messages in the queue for the NtripClient to process.
+     * 
+     * @param InputStr GGA string to be handled by NtripClient
+     */
+    void ProcessGngaaInput(const std::string &InputStr);
 
 private:
 
     /**
-     * @brief Cleans up the NtripClient, closing the socket if it is still open.
+     * @brief The main thread handler for the NtripClient.
+     * 
+     * This function is responsible for handling the main body of the NtripClient service.
+     * It receives data from the NTRIP server and sends GGA data at regular intervals.
+     * 
+     * @return true if the thread handler completes successfully, false otherwise.
      */
     bool ThreadHandler();
 
     /**
      * @brief Cleans up the NtripClient, closing the socket if it is still open.
+     * 
+     * @return true on success, false on failure
      */
     void Cleanup();
+
+    /**
+     * @brief Sets up the socket connection to the server.
+     * 
+     * @return true on success, false on failure
+     */
+    bool ConnectSocket();
+
+    /**
+     * @brief Attempts to create the socket connection to the server with an exponential backoff in case of failure.
+     * 
+     * @return true on success, false on failure
+     */
+    bool ConnectToServer();
+
+    /**
+     * @brief Attempts to authenticate with the server with an exponential backoff in case of failure. Call ConnectSocket() or ConnectToServer() before this
+     * 
+     * @return true on success, false on failure
+     */
+    bool AuthenticateConnection();
+
+    /**
+     * @brief Attempts to send an initial gga message to the server. Call AuthenticateConnection() before this
+     * 
+     * @return true on success, false on failure
+     */
+    bool SendInitialMessage();
+
+    /**
+     * @brief Function to attempt to fully re-connect the process to the server, remaking the socket and authenticating. Call Cleanup() before this
+     * 
+     * @return true on success, false on failure
+     */
+    bool AttemptReconnect();
 
     //connection details
     std::string host_;
@@ -113,15 +170,21 @@ private:
     std::string password_;
     int sockfd_ = -1;
 
-    //buffer to hold the latest gga message
-    std::string gga_buffer_;
+    //items related to queues and ipc
+    std::function<void(const std::vector<unsigned char>&)> rtcm_output_handler_;
+    std::mutex m_Serial2NtripClientMutex;
+    std::queue<std::string> m_Serial2NtripClientMessages;
+    unsigned int m_MaxQueueSize = 0;
 
     //thread to handle the main body of the client
-    std::thread thread_;
+    std::thread m_MainNtripClientThread;
 
     //flags to track the state of the client
     bool initialized_ = false;
     bool connected_ = false;
     bool authenticated_ = false;
     bool running_ = false;
+    bool stop_called_ = false;
 };
+
+#endif //NTRIP_CLIENT_H

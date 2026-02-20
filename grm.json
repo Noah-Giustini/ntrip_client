@@ -1,0 +1,21 @@
+{
+  "serial_ports": [
+    {
+      "port": "/dev/ttyUSB0",
+      "baudrate": 115200,
+      "is_gga_source": true
+    },
+    {
+      "port": "/dev/ttyUSB1",
+      "baudrate": 115200,
+      "is_gga_source": false
+    }
+  ],
+  "ntrip": {
+    "host": "caster.example.com",
+    "port": "2101",
+    "mountpoint": "MOUNTPOINT",
+    "username": "username",
+    "password": "password"
+  }
+}
